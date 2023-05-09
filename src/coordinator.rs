@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, BufWriter, Write},
     os::unix::net::{UnixListener, UnixStream},
     path::Path,
     thread,
@@ -23,33 +23,39 @@ impl Coordinator {
 
         for incoming in unix_listener.incoming() {
             if let Ok(stream) = incoming {
-                thread::spawn(|| Self::handle_client(stream));
+                thread::spawn(|| Self::handle_rpc(stream));
             } else {
                 break;
             }
         }
     }
 
-    fn handle_client(stream: UnixStream) {
-        stream
-            .set_read_timeout(Some(Duration::from_secs(10)))
-            .unwrap();
-        let mut stream = BufReader::new(stream);
+    fn handle_rpc(stream: UnixStream) {
+        let mut out_stream = BufWriter::new(stream.try_clone().unwrap());
+        let mut in_stream = BufReader::new(stream.try_clone().unwrap());
         let mut id = String::new();
 
-        stream.read_line(&mut id).expect("Reading ID failed");
+        in_stream.read_line(&mut id).expect("Reading ID failed");
 
         // trim newline after
         let id = id.trim();
 
-        println!("Registered worker {}", id);
+        println!("RPC from worker {}", id);
 
-        for line in stream.lines() {
-            if let Ok(line) = line {
-                println!("Received: {} Hello", line);
-            } else {
-                println!("{} Timed out!", id);
-                break;
+        let mut rpc_call = String::new();
+        in_stream
+            .read_line(&mut rpc_call)
+            .expect("Reading RPC call failed");
+
+
+        match &rpc_call[..] {
+            "keep-alive" => {
+                out_stream
+                    .write(format!("{} keep-alive", id).as_bytes())
+                    .expect("keep-alive res failed");
+            }
+            _ => {
+                println!("Unknown RPC call {}", rpc_call);
             }
         }
 
