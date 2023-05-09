@@ -12,8 +12,8 @@ use crate::SOCKET;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum Task {
-    MAP(TaskStatus),
-    REDUCE(TaskStatus),
+    MAP(String, TaskStatus),
+    REDUCE(String, TaskStatus),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -93,6 +93,28 @@ impl Coordinator {
                 this.workers_keep_alive.insert(worker, Instant::now());
 
                 Self::write_res("register res", &mut out_stream);
+            }
+            "steal-work" => {
+                let mut this = this.lock().unwrap();
+
+                if let Some(task) = this.pending_tasks.pop() {
+                    match task {
+                        Task::MAP(at, _) => {
+                            this.workers_task
+                                .insert(worker, Task::MAP(at.clone(), TaskStatus::RUNNING));
+                            this.workers_keep_alive.insert(worker, Instant::now());
+                            Self::write_res(format!("map {}", at), &mut out_stream);
+                        }
+                        Task::REDUCE(at, _) => {
+                            this.workers_task
+                                .insert(worker, Task::REDUCE(at.clone(), TaskStatus::RUNNING));
+                            this.workers_keep_alive.insert(worker, Instant::now());
+                            Self::write_res(format!("reduce {}", at), &mut out_stream);
+                        }
+                    }
+                } else {
+                    Self::write_res("nowork", &mut out_stream);
+                }
             }
             "keep-alive" => {
                 let mut this = this.lock().unwrap();

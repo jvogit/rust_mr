@@ -14,7 +14,17 @@ pub struct Worker<'a> {
 }
 
 impl<'a> Worker<'a> {
-    fn map(&mut self, path: &Path) {}
+    fn map(&mut self, path: &Path) {
+        // READ FROM PARTITION
+        // APPLY MAPPER FUNCTION FROM INITIAL KEY/VALUE TO INTERMEDIATE KEY/VALUE SET (SORTED BY KEY)
+        // EXPORT MAPPING AND NOTIFY COORDINATOR WHEN DONE
+    }
+
+    fn reduce(&mut self, path: &Path) {
+        // READ SORTED MAPPED PARTITION
+        // APPLY REDUCTION
+        // EXPORT REDUCTION AND NOTIFY COORDINATOR WHEN DONE
+    }
 
     pub fn run(id: &'a str) {
         let worker = Worker { id };
