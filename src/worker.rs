@@ -71,10 +71,21 @@ impl<'a> Worker<'a> {
         self.status = TaskStatus::IDLE;
     }
 
-    fn do_reduce(&mut self, path: &Path) {
-        // READ SORTED MAPPED PARTITION
-        let lines = Self::read_lines(path).expect("failed to read partition");
+    fn do_reduce(&mut self, partition_names: &[String]) {
+        // READ SORTED MAPPED PARTITIONS (merge individual partitions)
+        let mut partitions = Vec::with_capacity(partition_names.len());
+        for partition in partition_names {
+            let path = Path::new(partition);
+            let lines: Vec<String> = Self::read_lines(path)
+                .expect("failed to read partition")
+                .map(|s| s.unwrap())
+                .collect();
+
+            partitions.push(lines);
+        }
+        let lines = Merge::merge_sorted_k(partitions);
         // APPLY REDUCTION
+
         // EXPORT REDUCTION AND NOTIFY COORDINATOR WHEN DONE
     }
 
@@ -108,10 +119,6 @@ impl<'a> Worker<'a> {
                     }
                     "reduce" => {
                         self.status = TaskStatus::REDUCE;
-                        
-                        for i in 1..res.len() {
-                            // do it
-                        }
                     }
                     _ => {
                         println!("Unknown res")
@@ -155,5 +162,38 @@ impl<'a> Worker<'a> {
         let file = File::open(path)?;
 
         Ok(BufReader::new(file).lines())
+    }
+}
+
+struct Merge {}
+
+impl Merge {
+    fn merge_sorted(a: Vec<String>, b: Vec<String>) -> Vec<String> {
+        let mut res = Vec::with_capacity(a.len() + b.len());
+        let (mut a, mut b) = (a.into_iter(), b.into_iter());
+        let (mut a_i, mut b_i) = (a.next(), b.next());
+
+        while a_i.is_some() || b_i.is_some() {
+            if b_i.is_none() || a_i.is_some() && a_i.as_ref().unwrap() <= b_i.as_ref().unwrap() {
+                res.push(a_i.unwrap());
+                a_i = a.next();
+            } else {
+                res.push(b_i.unwrap());
+                b_i = b.next();
+            }
+        }
+
+        res
+    }
+
+    fn merge_sorted_k(mut k: Vec<Vec<String>>) -> Vec<String> {
+        match k.len() {
+            0 => vec![],
+            1 => k.remove(0),
+            n => {
+                let b = k.split_off(n / 2);
+                Self::merge_sorted(Self::merge_sorted_k(k), Self::merge_sorted_k(b))
+            }
+        }
     }
 }
