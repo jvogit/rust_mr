@@ -117,7 +117,7 @@ impl Coordinator {
                     this.workers_task
                         .insert(worker, Task::MAP(map_at, TaskStatus::RUNNING));
                     this.workers_keep_alive.insert(worker, Instant::now());
-                } else if this.reduce_tasks[id].len() == this.M {
+                } else if id < this.R() && this.reduce_tasks[id].len() == this.M {
                     // mappers have finished mapping
                     // its reducing time
                     let mut reduce_at = String::new();
